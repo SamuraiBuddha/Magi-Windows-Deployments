@@ -1,0 +1,414 @@
+version: '3.8'
+
+# Comprehensive MCP Stack for Terramaster NAS
+# All services configured with optimal settings
+# Replace all ${VARIABLE} placeholders with your actual values
+
+services:
+  # =================
+  # Core Infrastructure
+  # =================
+  
+  # Redis - Caching and Pub/Sub
+  mcp-redis:
+    image: mcp/redis:latest
+    container_name: mcp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 4gb --maxmemory-policy allkeys-lru
+    ports:
+      - "0.0.0.0:6379:6379"
+    volumes:
+      - ./data/redis:/data
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-changeme}
+    networks:
+      - mcp_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL - Primary Database
+  mcp-postgres:
+    image: mcp/postgres:latest
+    container_name: mcp-postgres
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:5432:5432"
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: mcp_db
+      POSTGRES_MAX_CONNECTIONS: 200
+      POSTGRES_SHARED_BUFFERS: 2GB
+    networks:
+      - mcp_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Filesystem - Shared File Access
+  mcp-filesystem:
+    image: mcp/filesystem:latest
+    container_name: mcp-filesystem
+    restart: unless-stopped
+    volumes:
+      - ./data/shared:/data/shared
+      - /Volume1/shared:/mnt/nas  # Mount NAS shared folder
+    environment:
+      MCP_ALLOWED_PATHS: "/data/shared,/mnt/nas"
+      READ_ONLY: "false"
+    networks:
+      - mcp_network
+
+  # Portainer - Docker Management UI
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:9000:9000"
+      - "0.0.0.0:9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/portainer:/data
+    networks:
+      - mcp_network
+
+  # =================
+  # Development Tools
+  # =================
+
+  # Desktop Commander - File System Operations
+  mcp-desktop-commander:
+    image: mcp/desktop-commander:latest
+    container_name: mcp-desktop-commander
+    restart: unless-stopped
+    volumes:
+      - ./data/desktop-commander:/data
+      - /Volume1:/mnt/volume1:ro  # Read-only access to NAS
+    environment:
+      ALLOWED_DIRECTORIES: "/data,/mnt/volume1"
+      FILE_READ_LINE_LIMIT: 10000
+      FILE_WRITE_LINE_LIMIT: 1000
+    networks:
+      - mcp_network
+
+  # Node.js Sandbox - Code Execution
+  mcp-node-sandbox:
+    image: mcp/node-code-sandbox:latest
+    container_name: mcp-node-sandbox
+    restart: unless-stopped
+    volumes:
+      - ./data/sandbox:/sandbox
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      SANDBOX_MEMORY_LIMIT: "4G"
+      SANDBOX_CPU_LIMIT: "4"
+      ALLOWED_PACKAGES: "*"  # Or specify specific packages
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    networks:
+      - mcp_network
+
+  # GitHub Integration
+  mcp-github:
+    image: mcp/github-mcp-server:latest
+    container_name: mcp-github
+    restart: unless-stopped
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_API_URL: "https://api.github.com"
+    networks:
+      - mcp_network
+
+  # Docker Management
+  mcp-docker:
+    image: mcp/docker:latest
+    container_name: mcp-docker
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOCKER_HOST: "unix:///var/run/docker.sock"
+      DOCKER_API_VERSION: "1.41"
+    networks:
+      - mcp_network
+
+  # =================
+  # AI/ML & Memory
+  # =================
+
+  # Neo4j Memory - Knowledge Graph
+  mcp-neo4j-memory:
+    image: mcp/neo4j-memory:latest
+    container_name: mcp-neo4j-memory
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:7474:7474"  # HTTP
+      - "0.0.0.0:7687:7687"  # Bolt
+    volumes:
+      - ./data/neo4j:/data
+      - ./data/neo4j/logs:/logs
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-changeme}
+      NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_memory_pagecache_size: 4G
+      NEO4J_dbms_memory_heap_max__size: 4G
+    networks:
+      - mcp_network
+
+  # Basic Memory - Simple Key-Value Store
+  mcp-basic-memory:
+    image: mcp/basic-memory:latest
+    container_name: mcp-basic-memory
+    restart: unless-stopped
+    volumes:
+      - ./data/basic-memory:/data
+    environment:
+      STORAGE_PATH: "/data/memory.db"
+      MAX_ENTRIES: 100000
+    networks:
+      - mcp_network
+
+  # Sequential Thinking - Advanced Reasoning
+  mcp-sequential-thinking:
+    image: mcp/sequentialthinking:latest
+    container_name: mcp-sequential-thinking
+    restart: unless-stopped
+    environment:
+      MAX_THOUGHTS: 50
+      THOUGHT_TIMEOUT: 300
+    networks:
+      - mcp_network
+
+  # Context7 - Library Documentation
+  mcp-context7:
+    image: mcp/context7:latest
+    container_name: mcp-context7
+    restart: unless-stopped
+    environment:
+      CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}
+      CACHE_SIZE: "10GB"
+      UPDATE_INTERVAL: "86400"  # Daily updates
+    volumes:
+      - ./data/context7:/cache
+    networks:
+      - mcp_network
+
+  # Paper Search - Academic Papers
+  mcp-paper-search:
+    image: mcp/paper-search:latest
+    container_name: mcp-paper-search
+    restart: unless-stopped
+    volumes:
+      - ./data/papers:/papers
+    environment:
+      ARXIV_ENABLED: "true"
+      PUBMED_ENABLED: "true"
+      SEMANTIC_SCHOLAR_API_KEY: ${SEMANTIC_SCHOLAR_API_KEY}
+      DOWNLOAD_PATH: "/papers"
+    networks:
+      - mcp_network
+
+  # Perplexity Integration
+  mcp-perplexity:
+    image: mcp/perplexity-ask:latest
+    container_name: mcp-perplexity
+    restart: unless-stopped
+    environment:
+      PERPLEXITY_API_KEY: ${PERPLEXITY_API_KEY}
+      MODEL: "llama-3.1-sonar-large-128k-online"
+      MAX_TOKENS: 4096
+    networks:
+      - mcp_network
+
+  # =================
+  # Data Sources & APIs
+  # =================
+
+  # Notion Integration
+  mcp-notion:
+    image: mcp/notion:latest
+    container_name: mcp-notion
+    restart: unless-stopped
+    environment:
+      NOTION_TOKEN: ${NOTION_TOKEN}
+      NOTION_VERSION: "2022-06-28"
+    networks:
+      - mcp_network
+
+  # Grafana Integration
+  mcp-grafana:
+    image: mcp/grafana:latest
+    container_name: mcp-grafana
+    restart: unless-stopped
+    environment:
+      GRAFANA_URL: ${GRAFANA_URL:-http://localhost:3000}
+      GRAFANA_API_KEY: ${GRAFANA_API_KEY}
+    networks:
+      - mcp_network
+
+  # Pinecone Vector Database
+  mcp-pinecone:
+    image: mcp/pinecone:latest
+    container_name: mcp-pinecone
+    restart: unless-stopped
+    environment:
+      PINECONE_API_KEY: ${PINECONE_API_KEY}
+      PINECONE_ENVIRONMENT: ${PINECONE_ENVIRONMENT}
+      PINECONE_INDEX: ${PINECONE_INDEX}
+    networks:
+      - mcp_network
+
+  # Everart Integration
+  mcp-everart:
+    image: mcp/everart:latest
+    container_name: mcp-everart
+    restart: unless-stopped
+    environment:
+      EVERART_API_KEY: ${EVERART_API_KEY}
+    networks:
+      - mcp_network
+
+  # Atlas Documentation
+  mcp-atlas-docs:
+    image: mcp/atlas-docs:latest
+    container_name: mcp-atlas-docs
+    restart: unless-stopped
+    volumes:
+      - ./data/atlas-docs:/docs
+    environment:
+      UPDATE_INTERVAL: "3600"  # Hourly updates
+    networks:
+      - mcp_network
+
+  # YouTube Transcript
+  mcp-youtube-transcript:
+    image: mcp/youtube-transcript:latest
+    container_name: mcp-youtube-transcript
+    restart: unless-stopped
+    environment:
+      YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
+      CACHE_TRANSCRIPTS: "true"
+    volumes:
+      - ./data/youtube-cache:/cache
+    networks:
+      - mcp_network
+
+  # =================
+  # Specialized Tools
+  # =================
+
+  # Playwright - Browser Automation
+  mcp-playwright:
+    image: mcp/playwright:latest
+    container_name: mcp-playwright
+    restart: unless-stopped
+    environment:
+      BROWSER: "chromium"
+      HEADLESS: "true"
+      VIEWPORT_WIDTH: 1920
+      VIEWPORT_HEIGHT: 1080
+    volumes:
+      - ./data/playwright:/data
+    shm_size: 2gb  # Important for browser operations
+    networks:
+      - mcp_network
+
+  # Azure Integration
+  mcp-azure:
+    image: mcp/azure:latest
+    container_name: mcp-azure
+    restart: unless-stopped
+    environment:
+      AZURE_SUBSCRIPTION_ID: ${AZURE_SUBSCRIPTION_ID}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+    networks:
+      - mcp_network
+
+  # 3D Printer Control
+  mcp-3d-printer:
+    image: mcp/3d-printer:latest
+    container_name: mcp-3d-printer
+    restart: unless-stopped
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0  # Adjust for your printer
+    environment:
+      PRINTER_TYPE: ${PRINTER_TYPE:-ender3}
+      OCTOPRINT_URL: ${OCTOPRINT_URL}
+      OCTOPRINT_API_KEY: ${OCTOPRINT_API_KEY}
+    networks:
+      - mcp_network
+
+  # Everything Search (Windows Search)
+  mcp-everything:
+    image: mcp/everything:latest
+    container_name: mcp-everything
+    restart: unless-stopped
+    environment:
+      EVERYTHING_HOST: ${EVERYTHING_HOST}
+      EVERYTHING_PORT: ${EVERYTHING_PORT:-2121}
+    networks:
+      - mcp_network
+
+  # OSP Marketing Tools
+  mcp-osp-marketing:
+    image: mcp/osp_marketing_tools:latest
+    container_name: mcp-osp-marketing
+    restart: unless-stopped
+    volumes:
+      - ./data/osp-marketing:/data
+    networks:
+      - mcp_network
+
+  # Time & Timezone
+  mcp-time:
+    image: mcp/time:latest
+    container_name: mcp-time
+    restart: unless-stopped
+    environment:
+      DEFAULT_TIMEZONE: ${DEFAULT_TIMEZONE:-America/New_York}
+    networks:
+      - mcp_network
+
+  # Fetch - Web Content
+  mcp-fetch:
+    image: mcp/fetch:latest
+    container_name: mcp-fetch
+    restart: unless-stopped
+    environment:
+      USER_AGENT: "MCP-Fetch/1.0"
+      TIMEOUT: 30000
+      MAX_REDIRECTS: 5
+    networks:
+      - mcp_network
+
+# =================
+# Networks
+# =================
+networks:
+  mcp_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+# =================
+# Volumes (optional, for named volumes)
+# =================
+volumes:
+  postgres_data:
+  redis_data:
+  neo4j_data:

@@ -1,0 +1,84 @@
+version: '3.8'
+
+# MCP Services for Terramaster with explicit networking
+# This configuration ensures all services are accessible from your local network
+
+services:
+  # PostgreSQL - Port 5432
+  mcp-postgres:
+    image: postgres:16-alpine
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mcp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: mcp_db
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "0.0.0.0:5432:5432"  # Bind to all interfaces
+    networks:
+      - mcp_network
+
+  # Redis - Port 6379
+  mcp-redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - ./data/redis:/data
+    ports:
+      - "0.0.0.0:6379:6379"  # Bind to all interfaces
+    networks:
+      - mcp_network
+
+  # Neo4j - Ports 7474, 7687
+  mcp-neo4j:
+    image: neo4j:5-community
+    container_name: mcp-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_default__advertised__address: ${TERRAMASTER_IP}
+      NEO4J_dbms_default__listen__address: 0.0.0.0
+    volumes:
+      - ./data/neo4j/data:/data
+      - ./data/neo4j/logs:/logs
+    ports:
+      - "0.0.0.0:7474:7474"  # HTTP
+      - "0.0.0.0:7687:7687"  # Bolt
+    networks:
+      - mcp_network
+
+  # MCP Server Runner
+  mcp-runner:
+    image: node:20-slim
+    container_name: mcp-runner
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./configs:/configs
+      - ./data/shared:/data/shared
+      - ./data/memory:/data/memory
+    environment:
+      MCP_SERVERS_CONFIG: /configs/mcp-servers.json
+    command: >
+      sh -c "
+        npm install -g @modelcontextprotocol/server-manager &&
+        npm install -g @modelcontextprotocol/server-filesystem &&
+        npm install -g @modelcontextprotocol/server-postgres &&
+        npm install -g @modelcontextprotocol/server-redis &&
+        npm install -g @modelcontextprotocol/server-memory &&
+        tail -f /dev/null
+      "
+    networks:
+      - mcp_network
+
+networks:
+  mcp_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,4 +1,4 @@
-# 🌟 Magi Windows Deployments
+# 🧠 Magi Windows Deployments
 
 Modern Windows 11 Pro deployment configurations for three specialized workstations named after the Three Wise Men, each bringing unique computational gifts to the CORTEX project.
 
@@ -65,6 +65,24 @@ We'll use a **hybrid approach** combining the best of modern methods:
 - Data processing frameworks
 - Git, Node.js, Python, Go, Rust toolchains
 
+## 🗄️ Terramaster NAS Integration
+
+### Centralized MCP Services
+The **Terramaster F8 Plus** (16TB NVMe, TOS 6.0) hosts all MCP (Model Context Protocol) services, providing:
+- **Unified Memory**: Single knowledge graph across all Claude instances
+- **Consistent State**: Shared conversation context between machines
+- **High Performance**: NVMe storage for fast MCP operations
+- **Central Management**: Update all MCP tools in one place
+
+**Hosted Services**:
+- PostgreSQL (persistent storage)
+- Redis (caching & pub/sub)
+- Neo4j (knowledge graph)
+- InfluxDB (metrics)
+- MCP Manager (orchestration)
+
+[See full Terramaster MCP setup guide](docs/TERRAMASTER_MCP_INTEGRATION.md)
+
 ## 🚀 Modern Deployment Methods
 
 ### Option 1: Microsoft Deployment Toolkit (MDT) - Recommended
@@ -88,29 +106,27 @@ We'll use a **hybrid approach** combining the best of modern methods:
 ```
 Magi-Windows-Deployments/
 ├── base-image/
-│   ├── windows-11-pro-base.md      # Base image creation guide
-│   ├── drivers/                    # Common drivers
-│   └── updates/                    # Cumulative updates
+│   ├── windows-11-pro-base.md       # Base image creation guide
+│   ├── drivers/                     # Common drivers
+│   └── updates/                     # Cumulative updates
 ├── configurations/
-│   ├── melchior-cad/              # CAD workstation config
-│   ├── balthazar-ai/              # AI host config
-│   └── caspar-code/               # Dev workstation config
+│   ├── melchior-config.xml          # CAD workstation config
+│   ├── balthazar-config.xml         # AI host config
+│   └── caspar-config.xml            # Dev workstation config
 ├── scripts/
-│   ├── Install-BaseApps.ps1       # Common software
-│   ├── Configure-System.ps1       # System settings
-│   └── Deploy-Role.ps1            # Role-specific deployment
-├── chocolatey/
-│   ├── packages.config            # Common packages
-│   └── role-specific/             # Per-machine packages
-├── ansible/                       # Ansible playbooks (optional)
-│   ├── inventory.yml
-│   └── playbooks/
-└── docs/
-    ├── deployment-guide.md
-    └── troubleshooting.md
+│   ├── Deploy-Windows11.ps1         # Main deployment script
+│   ├── Setup-CORTEX-Integration.ps1 # CORTEX stack setup
+│   ├── Configure-TerramasterMCP-Client.ps1 # MCP client config
+│   └── deploy-mcp-terramaster.sh    # Terramaster setup
+├── docs/
+│   ├── QUICK_START.md
+│   ├── TERRAMASTER_MCP_INTEGRATION.md
+│   └── network-deployment.md
+└── configs/
+    └── network-deployment.md
 ```
 
-## 🔧 Quick Start
+## 📋 Quick Start
 
 ### Prerequisites
 - Windows 11 Pro ISO (latest version)
@@ -120,24 +136,26 @@ Magi-Windows-Deployments/
 
 ### Basic Deployment Flow
 ```powershell
-# 1. Create base image with MDT
-.\Create-BaseImage.ps1
+# 1. Deploy Windows to target machine
+.\scripts\Deploy-Windows11.ps1 -ConfigFile "configs\melchior-config.xml"
 
-# 2. Deploy to target machine
-.\Deploy-Magi.ps1 -Role "Melchior" -TargetComputer "MELCHIOR-PC"
+# 2. Configure drivers
+.\scripts\Manage-Drivers.ps1 -Machine "Melchior"
 
-# 3. Post-deployment configuration
-.\Configure-Role.ps1 -Role "Melchior"
+# 3. Setup CORTEX integration
+.\scripts\Setup-CORTEX-Integration.ps1 -Machine "Melchior"
+
+# 4. Configure MCP connection to Terramaster
+.\scripts\Configure-TerramasterMCP-Client.ps1 -TerramasterHost "terramaster.local"
 ```
 
 ## 🎯 Next Steps
 
-1. **Choose deployment method** (MDT recommended for your use case)
+1. **Setup Terramaster MCP Services** (centralized Claude memory)
 2. **Create base Windows 11 Pro image**
-3. **Define software packages for each role**
-4. **Script the deployment process**
-5. **Test on one machine first**
-6. **Document machine-specific tweaks**
+3. **Deploy to each machine**
+4. **Configure CORTEX integration**
+5. **Test inter-machine orchestration**
 
 ## 📊 Deployment Checklist
 
@@ -146,6 +164,7 @@ Magi-Windows-Deployments/
 - [ ] Drivers collected for each machine
 - [ ] Software installers/licenses gathered
 - [ ] Network infrastructure ready
+- [ ] Terramaster MCP services deployed
 - [ ] Backup current systems
 - [ ] Test deployment environment
 
@@ -156,6 +175,7 @@ Magi-Windows-Deployments/
 - [PowerShell DSC](https://docs.microsoft.com/en-us/powershell/scripting/dsc/overview)
 - [Chocolatey for Business](https://chocolatey.org/solutions/businesses)
 - [Windows Autopilot](https://docs.microsoft.com/en-us/mem/autopilot/)
+- [CORTEX AI Orchestrator](https://github.com/SamuraiBuddha/CORTEX-AI-Orchestrator-v2)
 
 ---
 
